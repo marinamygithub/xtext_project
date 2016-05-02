@@ -1,0 +1,106 @@
+package adsl.lang;
+
+public class Object
+ {
+ 
+ 	
+	def clone() {
+		return this;
+	}
+	
+	def toString() {
+		// fake implementation
+		return "not implemented";
+	}
+
+	def equals() {
+		// fake implementation
+		return false;
+	}
+	
+	def id() {
+		
+	}
+}
+
+public class String extends Object {
+
+}
+
+public class Integer extends Object {
+
+}
+
+public class Boolean extends Object {
+
+}
+
+public class Place extends Object {
+
+	def places() {
+	
+	}
+}
+public class Array extends Object {
+
+}
+public class ArrayList extends Object {
+
+}
+public class Dist extends Object {
+
+	def makeUnique() {
+		 
+	} 
+	
+	def make() {
+		 
+	}	 
+} 
+
+public class DistArray extends Object {
+	
+	def dist () {
+	}
+	
+	def make () {
+	}
+}
+public class Float extends Object {
+
+}
+public class GlobalRef extends Object {
+	val home;
+}
+public class Int extends Object {
+	
+	def operator_as() {
+		 
+	}	
+} 
+public class Long extends Object {
+
+}
+public class Point extends Object {
+
+}
+public class Rail extends Object {
+
+}
+public class Sequence extends Object {
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

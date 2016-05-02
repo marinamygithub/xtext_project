@@ -1,0 +1,337 @@
+grammar org.xtext.example.mydsl1.ADSL with org.eclipse.xtext.common.Terminals
+
+generate aDSL "http://www.xtext.org/example/mydsl1/ADSL"
+/*
+ * Loose grammar approach - validation should be strict
+ */
+Program:
+	('package' name = QualifiedName ';')?
+	importElements += AbstractElements*
+	xclass += XClass*
+;
+AbstractElements:
+	'import' importedNamespace = QualifiedNameWithWildcard ';'
+;
+ImportElements:
+  ID ('.' ID)*
+;
+QualifiedNameWithWildcard:
+    QualifiedName '.*'?
+;
+QualifiedName:
+	ID ('.' ID)*
+;
+XClass:
+	'public' 'class' name = ID ('extends' superclass=[XClass|QualifiedName])?
+	'{'
+	members += Member*
+	'}'	
+;
+Member:
+	VariableDef | SharedDef | FuncVarDef | Method | Operator | PrintInst | MainMethod
+;
+MainMethod:
+	'public' 'static' 'def' 'main' '(' type = VariableType ')'
+	body = Body
+;
+PrintInst:
+	'Console' ('.' ID)* '(' expression = Expression ')' ';' 
+;
+Method:
+	'def' (isconst ?= 'const')? name = (ID | 'this')  '(' (params += Parameter (',' params += Parameter)*)? ')'
+	(istyped ?= ':' type = VariableType)?
+	body = Body
+;
+Operator:
+	'public' 'operator' opName = (ID | 'this') 
+		'(' (params += Parameter (',' params += Parameter)*)? ')' 
+		'=' expression = Expression ';'
+;
+FuncVarDef:
+	'val' name = ID ':' '(' (params += Parameter (',' params += Parameter)*)? ')'
+	'=>' type = VariableType '=' '(' (params += Parameter (',' params += Parameter)*)? ')'
+	'=>' body = Body ';'
+;
+VariableDef:
+	 (isstatic ?= 'static')? vartype = ('var' | 'val') name = ID (istyped ?= ':' type = VariableType)? 
+		(isinit ?= '=' expression = ArithExpression)? ';'
+;
+SharedArrayDef:
+	'shared-val'(replicas ?= 'replicas')? name = ID ':' type = VariableType 'with' sym = [VarDef] '='
+	expression = [VariableDef] ';'
+;
+SharedVarDef:
+ 	'shared-val' (replicas ?= 'replicas')? name = ID ':' type = VariableType 'with' sym = [VarDef] '='
+	expression = Expression ';'
+;
+Parameter:
+	name = ID (istyped ?= ':' type = VariableType)?
+;
+Body:
+	{Body} '{' statements += Statement* '}'
+;
+Block:
+	statements += Statement |
+	ispar ?= '{' statements += Statement+ '}'
+;
+VariableType: 
+	type =  [XClass|QualifiedName] (isarray ?= '[' innerType = VariableType ']' )?
+;
+Statement:
+	AsyncStat |
+	FinishStat |
+	AtStat |
+	SharedDef |
+	VariableDef |
+	FuncVarDef |
+	PrintInst |
+	IfStatement |
+	For2Statement |
+	ForStatement |
+	WhileStatement |
+	ReturnStatement |
+	TryCatchBlock |
+	AtomicStatement |
+	WhenStatement |
+	Expression ';'
+;
+AsyncStat:
+	'async' body = Block
+;
+FinishStat:
+	'finish' body = Block
+;
+AtStat:
+	'at' '(' exp = SelectionExpression ')' body = Block
+;
+AtomicStatement:
+	'atomic' statement = Statement
+;
+WhenStatement:
+	'when' '(' expression = Equality ')' statement = Statement
+;
+For2Statement:
+	'for' '(' par  = Parameter 'in' data = TerminalExpression ')' 
+	body = Block
+;
+TryCatchBlock returns Statement:
+	{TryCatchStat} 'try' 
+	bodyTry = Body
+	'catch' '(' name = ID ')'
+	bodyCatch = Body 
+;
+WhileStatement returns Statement:
+	{WhileStat} 'while' '(' expression = Expression ')'
+	body = Body
+;
+ForStatement returns Statement:
+	{ForStat} 'for' '(' temp = VariableDef condition = ArithExpression ';' finalexp = Expression ')'
+	body = Block
+;
+ReturnStatement returns Statement:
+	{ReturnStat} 'return' expression = Expression ';'
+;
+VarDef:
+	SharedDef |
+	VariableDef |
+	Parameter |
+	FuncVarDef |
+	XClass |
+	VariableType
+;
+SharedDef:
+	=>SharedArrayDef |
+	SharedVarDef
+;
+IfStatement returns Statement:
+	{IfStat} 'if' '(' expression = ArithExpression ')' thenBlock = Block
+	(=> iselse ?= 'else' elseBlock = Block)?
+;
+Expression:
+	Assignment
+;
+ArithExpression returns Expression: 
+	Or
+;
+Assignment returns Expression:
+	SelectionExpression 
+	({Assignment.left = current} '=' right = ArithExpression)? 
+;
+SelectionExpression returns Expression:
+	TerminalExpression
+	(
+		{MemberSelection.receiver = current}
+		'.'	member = [Member]
+		
+		( ispar ?= '[' par = [XClass] ']')?	
+			
+		(methodinvocation ?= '(' 
+		 (args += Expression (',' args += Expression)*)? ')'
+		)?
+	)* //left associativity
+;
+Or returns Expression:
+	And ({Or.left = current} '||' right = And)* // left associativity
+; 
+And returns Expression:
+	Equality ({And.left = current} '&&' right = Equality)*
+;
+Equality returns Expression:
+	Comparison (
+		{Equality.left = current} op = ('==' | '!=')
+		right = Comparison
+	)*
+;
+Comparison returns Expression:
+	PlusOrMinus (
+		{Comparison.left = current} op = ('<=' | '>=' | '<' | '>')
+		right = PlusOrMinus		
+	)*
+;
+PlusOrMinus returns Expression:
+	MulOrDiv (
+		({Plus.left = current} '+' | {Minus.left = current} '-')
+		right = MulOrDiv
+	)*
+;
+MulOrDiv returns Expression:
+	Primary (
+		{MulOrDiv.left = current} op = ('*' | '/')
+		right = Primary
+	)*
+;
+Primary returns Expression:
+	'(' Expression ')' |
+	{Not} '!' expression = Primary |
+	SelectionExpression
+;
+TerminalExpression returns Expression:
+	{StringConstant} value = STRING |
+	{IntConstant} value = IntegerNegative |
+	{BoolConstant} value = ('true' | 'false') |
+	{DeRef} ref = [VarDef] '(' ')' |
+	{This} 'this' |
+	{Null} 'null' |
+	{Here} 'here' |
+//	{ClassRef} b = [XClass|QualifiedName] |
+	{Reference} base = [VarDef] (isarray ?= '(' params += SelectionExpression ')')? |
+	{New} 'new' type = VariableType '(' (args += Expression (',' args += Expression)*)? ')' |
+	{Init} '('type = VariableType ')' '=>' expression = TerminalExpression 
+
+//	|'(' AExpression ')' 
+;
+IntegerNegative:
+	(isneg ?= '-')? value = INT
+;
+
+
+
+
+
+
+//	{PlaceRef} 'Place' | 
+//	{IntRef} 'Int' |
+//	{GlobalRef} ref = [XClass] |
+//	'[' type = VariableType ']' '(' variable = [VarDef] ')' |
+//	{Receiver} 'Int' |
+//	{Reference2} name = ID (ispar ?= '(' params += SelectionExpression ')')? |
+//	{SymbolRef} symbol = [Symbol] ('(' params += SelectionExpression ')')? |
+//	{ExternalRef} type = ID |
+//Reference:
+//	(base = [VarDef] (ispar ?= '(' params += SelectionExpression ')')?) |
+//	builtIn = ('Place' | 'Int')
+//;
+
+//Symbol:
+//=>	TempVar |
+//	VarDef | 
+//	Parameter |
+//	FuncVarDef
+//;
+//AExpression:
+//	Or
+//;
+//TempVar:
+//	name = ID ':' type = VariableType
+//	|
+//	name = ('Int' | 'Place')
+//	name =	('Long' | 'Point' | 'Dist' | 'DistArray'| 'ArrayList' | 'Array'
+//	| 'String' | 'Int' | 'Place' | 'Float' | 'Rail' | 'Region') |
+//;	
+//	!!!! This rule creates conflict with SymbolRef !!! 
+//							 This needs to be solved
+//SymbolRef:
+//	symbol = [Symbol]
+//;
+//ArrayAccess:
+//	SymbolRef
+//	({VariableSelection.var = current} 
+//		'('
+//		params += [Parameter]
+//		')'		
+//	)*
+//;
+//Atomic returns AExpression:
+//	{StringConstant} value = STRING |
+//	{IntConstant} value = INT |
+//	{BoolConstant} value = ('true' | 'false') 	
+//;
+
+
+//VariableType: 
+//	TempVar
+//	({MainType.name = current} (isarray ?= '[' innerType = VariableType ']' )?)
+//;
+// New Variable Type
+
+
+//ElementType:
+//	BasicType | EntityType
+//;
+//BasicType: 
+//	typeName = ('String' | 'Int' | 'Boolean' | 'Float' | 'Rail' | 'Long')
+//;
+//EntityType:
+//	type = [XClass]
+//;
+
+//Types:
+//	'Long' | 'Point' | 'Dist' | 'DistArray'| 'ArrayList' | 'Array'
+//	| 'String' | 'Int' | 'Place' | 'Float' | 'Rail' | 'Region'
+//;
+//IDs:
+//	ID | 'Long' | 'Point' | 'Dist' | 'DistArray' | 'GlobalRef' | 'ArrayList' | 'Array'
+//	| 'String' | 'Int' | 'Place' | 'Float' 'Rail' | 'Region' | 'place'
+//;
+//Place:
+//	'Place1' '(' value = INT ')'
+//;
+//SharedVarDef:
+//	Terminal
+//	({Vari.var = current} 'shared' 'with' '{'
+//	places += Place (',' places += Place)* '}' (init ?= '='
+//	expression = Expression)?
+//	)?
+//;
+//Terminal:
+//	VariableDef
+//;
+//	vartype = ('DistArray' | 'ArrayList')
+//	vartype = 'DistArray' array ?= '[' innerType = VariableType ']' |
+//	vartype = 'ArrayList' array ?= '[' innerType = VariableType ']' |
+//	vartype = KeyWords
+//Block:
+//		statement = Statement |
+//		body = Body
+//;
+
+// Block will be useful when dealing with the scoping*chapter 10
+//Block:
+//	MethodBody | IfBlock | LoopBody
+//;
+//Symbol:
+//	Variable
+//;
+//Expression:
+//	Expression | AExpression
+//;

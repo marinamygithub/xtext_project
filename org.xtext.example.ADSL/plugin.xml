@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.0"?>
+<plugin>
+	<extension point="org.eclipse.emf.ecore.generated_package">
+		<package 
+			uri = "http://www.xtext.org/example/mydsl1/ADSL"
+			class = "org.xtext.example.mydsl1.aDSL.ADSLPackage"
+			genModel = "model/generated/ADSL.genmodel" />
+	</extension>
+</plugin>
